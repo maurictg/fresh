@@ -34,6 +34,21 @@ const app = new App<{ greeting: string }>()
 Middlewares can be chained and combined in whatever way you desire. They are an
 excellent way to make http-related logic reusable on the server.
 
+## Internal rewrites
+
+Use `ctx.rewrite()` when you want to resolve a different route without sending
+an HTTP redirect to the browser:
+
+```ts
+app.use((ctx) => {
+  if (ctx.url.pathname === "/docs/latest") {
+    return ctx.rewrite("/docs");
+  }
+
+  return ctx.next();
+});
+```
+
 ## Middleware helper
 
 Use the `define.middleware()` helper to get typings out of the box:

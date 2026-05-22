@@ -111,6 +111,14 @@ export let getBuildCache: <T>(ctx: Context<T>) => BuildCache<T>;
 export let getInternals: <T>(ctx: Context<T>) => UiTree<unknown, T>;
 export let setAdditionalStyles: <T>(ctx: Context<T>, css: string[]) => void;
 
+type RewriteHandler = (pathOrUrl: string | URL) => Promise<Response>;
+
+const DEFAULT_REWRITE: RewriteHandler = () => {
+  return Promise.reject(
+    new Error("ctx.rewrite() can only be called while handling a request"),
+  );
+};
+
 /**
  * The context passed to every middleware. It is unique for every request.
  */
@@ -134,7 +142,7 @@ export class Context<State> {
   /** The url parameters of the matched route pattern. */
   readonly params: Record<string, string>;
   /** State object that is shared with all middlewares. */
-  readonly state: State = {} as State;
+  readonly state: State;
   data: unknown = undefined;
   /** Error value if an error was caught (Default: null) */
   error: unknown | null = null;
@@ -175,6 +183,7 @@ export class Context<State> {
 
   #buildCache: BuildCache<State>;
   #additionalStyles: string[] | null = null;
+  #rewrite: RewriteHandler;
 
   Component!: FunctionComponent;
 
@@ -195,16 +204,41 @@ export class Context<State> {
     config: ResolvedFreshConfig,
     next: () => Promise<Response>,
     buildCache: BuildCache<State>,
+    state: State = {} as State,
+    rewrite: RewriteHandler = DEFAULT_REWRITE,
   ) {
     this.url = url;
     this.req = req;
     this.info = info;
     this.params = params;
     this.route = route;
+    this.state = state;
     this.config = config;
     this.isPartial = url.searchParams.has(PARTIAL_SEARCH_PARAM);
     this.next = next;
     this.#buildCache = buildCache;
+    this.#rewrite = rewrite;
+  }
+
+  /**
+   * Rewrite the current request to another path and continue handling
+   * it internally without redirecting the client.
+   *
+   * If the target is a string without a query part, the current query
+   * parameters are preserved.
+   *
+   * ```ts
+   * app.use((ctx) => {
+   *   if (ctx.url.pathname.startsWith("/legacy/")) {
+   *     return ctx.rewrite(ctx.url.pathname.replace("/legacy", ""));
+   *   }
+   *
+   *   return ctx.next();
+   * });
+   * ```
+   */
+  rewrite(pathOrUrl: string | URL): Promise<Response> {
+    return this.#rewrite(pathOrUrl);
   }
 
   /**

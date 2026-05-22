@@ -130,6 +130,28 @@ app.get("/old-url", (ctx) => {
 });
 ```
 
+## `.rewrite()`
+
+Rewrite a request internally to another route without redirecting the client.
+The browser URL stays the same, but Fresh rematches and handles the rewritten
+path.
+
+```ts
+app.use((ctx) => {
+  if (ctx.url.pathname.startsWith("/legacy/")) {
+    const pathname = ctx.url.pathname.replace("/legacy", "");
+    return ctx.rewrite(pathname);
+  }
+
+  return ctx.next();
+});
+```
+
+`ctx.rewrite()` only accepts same-origin targets.
+
+When the target is a string without a `?query`, Fresh keeps the current query
+parameters.
+
 ## `.render()`
 
 Render JSX and create a HTML `Response`.
