@@ -248,7 +248,7 @@ Deno.test("App - ctx.rewrite() rematches and preserves state", async () => {
 
       if (LOCALES.has(first)) {
         const rewritten = `/${rest.join("/")}`;
-        return ctx.rewrite(rewritten === "/" ? "/" : rewritten);
+        return ctx.rewrite(rewritten);
       }
 
       if (ctx.state.locale === undefined) {
@@ -359,6 +359,21 @@ Deno.test("App - ctx.rewrite() supports URL targets with basePath", async () => 
   const server = new FakeServer(app.handler());
   const res = await server.get("/base/old");
   expect(await res.text()).toEqual("/base/new:1");
+});
+
+Deno.test("App - ctx.rewrite() repopulates ctx.params for new route", async () => {
+  const app = new App()
+    .use((ctx) => {
+      if (ctx.url.pathname.startsWith("/u/")) {
+        return ctx.rewrite(ctx.url.pathname.replace("/u/", "/users/"));
+      }
+      return ctx.next();
+    })
+    .get("/users/:id", (ctx) => new Response(ctx.params.id));
+
+  const server = new FakeServer(app.handler());
+  const res = await server.get("/u/123");
+  expect(await res.text()).toEqual("123");
 });
 
 Deno.test("App - ctx.rewrite() throws on rewrite loops", async () => {

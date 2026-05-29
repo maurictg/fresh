@@ -222,10 +222,18 @@ export class Context<State> {
 
   /**
    * Rewrite the current request to another path and continue handling
-   * it internally without redirecting the client.
+   * it internally without redirecting the client. The browser URL stays the
+   * same; Fresh rematches and dispatches the rewritten path instead.
    *
-   * If the target is a string without a query part, the current query
-   * parameters are preserved.
+   * - Only same-origin targets are accepted — passing a cross-origin URL
+   *   throws an error.
+   * - If the target is a string without a query part, the current query
+   *   parameters are preserved.
+   * - When `basePath` is configured, absolute string targets (starting with
+   *   `/`) are automatically prefixed with the basePath.
+   * - **Body ownership:** `ctx.rewrite()` transfers the request body to the
+   *   rewritten request. The calling middleware can no longer read `ctx.req`
+   *   body after the call.
    *
    * ```ts
    * app.use((ctx) => {
@@ -236,6 +244,8 @@ export class Context<State> {
    *   return ctx.next();
    * });
    * ```
+   *
+   * @see {@link redirect} for sending an HTTP redirect to the client instead.
    */
   rewrite(pathOrUrl: string | URL): Promise<Response> {
     return this.#rewrite(pathOrUrl);

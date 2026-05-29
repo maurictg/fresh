@@ -38,7 +38,7 @@ export const DEFAULT_CONN_INFO: any = {
   remoteAddr: { transport: "tcp", hostname: "localhost", port: 1234 },
 };
 
-const MAX_REWRITE_COUNT = 16;
+const MAX_REWRITE_COUNT = 8;
 
 function normalizeRequestUrl(req: Request, trustProxy: boolean): URL {
   const url = new URL(req.url);
@@ -60,10 +60,26 @@ function normalizeRequestUrl(req: Request, trustProxy: boolean): URL {
   return url;
 }
 
-function getRewriteUrl(currentUrl: URL, pathOrUrl: string | URL): URL {
-  const rewritten = pathOrUrl instanceof URL
-    ? new URL(pathOrUrl)
-    : new URL(pathOrUrl, currentUrl);
+function getRewriteUrl(
+  currentUrl: URL,
+  pathOrUrl: string | URL,
+  basePath: string,
+): URL {
+  // Auto-prefix basePath for absolute string paths so that apps with a
+  // basePath don't silently drop it when calling ctx.rewrite("/some/path").
+  let target: string | URL = pathOrUrl;
+  if (
+    basePath !== "" &&
+    typeof pathOrUrl === "string" &&
+    pathOrUrl.startsWith("/") &&
+    !pathOrUrl.startsWith(basePath)
+  ) {
+    target = basePath + pathOrUrl;
+  }
+
+  const rewritten = target instanceof URL
+    ? new URL(target)
+    : new URL(target, currentUrl);
 
   if (rewritten.origin !== currentUrl.origin) {
     throw new Error(
@@ -457,6 +473,7 @@ export class App<State> {
     );
 
     const trustProxy = this.config.trustProxy;
+    const basePath = this.config.basePath;
 
     const dispatch = async (
       req: Request,
@@ -515,8 +532,15 @@ export class App<State> {
             );
           }
 
-          const rewrittenUrl = getRewriteUrl(url, pathOrUrl);
-          const rewrittenReq = new Request(rewrittenUrl, req);
+          const rewrittenUrl = getRewriteUrl(url, pathOrUrl, basePath);
+          const rewrittenReq = req.body !== null
+            ? new Request(rewrittenUrl, {
+              body: req.body,
+              method: req.method,
+              headers: req.headers,
+              duplex: "half",
+            } as RequestInit)
+            : new Request(rewrittenUrl, req);
           return dispatch(rewrittenReq, conn, state, rewriteCount + 1);
         },
       );
